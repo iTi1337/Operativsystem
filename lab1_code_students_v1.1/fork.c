@@ -8,11 +8,17 @@ int main(int argc, char **argv)
     unsigned niterations = 1000;
     pid = fork();
     if (pid == 0) {
+        
         for (i = 0; i < niterations; ++i)
             printf("A = %d, ", i);
      } else {
+        printf(pid);
         for (i = 0; i < niterations; ++i)
             printf("B = %d, ", i);
     }
     printf("\n");
 }
+
+/*
+the fork.c
+*/
