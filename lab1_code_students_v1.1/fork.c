@@ -12,7 +12,7 @@ int main(int argc, char **argv)
         for (i = 0; i < niterations; ++i)
             printf("A = %d, ", i);
      } else {
-        printf(pid);
+        printf("%d", pid);
         for (i = 0; i < niterations; ++i)
             printf("B = %d, ", i);
     }
