@@ -9,7 +9,7 @@
 #define PERMS 0644
 struct my_msgbuf {
    long mtype;
-   char mtext[200];
+   int mtext[2000];
 };
 
 int main(void) {
@@ -18,7 +18,7 @@ int main(void) {
    int toend;
    key_t key;
 
-   if ((key = ftok("msgq.txt", 'B')) == -1) {
+   if ((key = ftok("msgq.txt", 'B')) == -1) { //if exist (this is why msgqsend must start first, since it creates the textfile)
       perror("ftok");
       exit(1);
    }
@@ -31,11 +31,11 @@ int main(void) {
 
    for(;;) { /* normally receiving never ends but just to make conclusion */
              /* this program ends with string of end */
-      if (msgrcv(msqid, &buf, sizeof(buf.mtext), 0, 0) == -1) {
+      if (msgrcv(msqid, &buf, sizeof(buf.mtext), 0, 0) == -1) { //if error while recieving
          perror("msgrcv");
          exit(1);
       }
-      printf("recvd: \"%s\"\n", buf.mtext);
+      printf("recvd: \"%d\"\n", buf.mtext);
       toend = strcmp(buf.mtext,"end");
       if (toend == 0)
       break;
