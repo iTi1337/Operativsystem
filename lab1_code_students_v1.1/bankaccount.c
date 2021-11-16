@@ -38,7 +38,7 @@ void* child(void* buf) {
 int main(int argc, char** argv) {
     pthread_t *children;
     unsigned long id = 0;
-    unsigned long nThreads = 0;
+    unsigned long nThreads = 64;
     if (argc > 1)
         nThreads = atoi(argv[1]);
     children = malloc( nThreads * sizeof(pthread_t) );
@@ -52,3 +52,7 @@ int main(int argc, char** argv) {
     pthread_mutex_destroy(&lock);
     return 0;
 }
+
+/*
+
+*/

@@ -18,7 +18,7 @@ void* child(void* params) {
 int main(int argc, char** argv) {
 	pthread_t* children; // dynamic array of child threads
 	struct threadArgs* args; // argument buffer
-	unsigned int numThreads = 0;
+	unsigned int numThreads = 4;
 	// get desired # of threads
 	if (argc > 1)
 		numThreads = atoi(argv[1]);
@@ -40,3 +40,7 @@ int main(int argc, char** argv) {
 	free(children); // deallocate array
 	return 0;
 }
+
+/*
+Every thread needs its own thread args since threads operate in a shared environment and unless we create new ones, all thread would use the same arguments
+*/

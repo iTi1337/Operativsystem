@@ -6,17 +6,18 @@
 #include <sys/ipc.h>
 #include <sys/msg.h>
 #include <time.h> // use time.h header file to use time  
+#include <unistd.h>
 
 time_t t1; // declare time variable 
-srand ( (unsigned) time (&t1)); // pass the srand() parameter   
 
 #define PERMS 0644
 struct my_msgbuf {
    long mtype;
-   int mtext[200];
+   int mtext[10];
 };
 
 int main(void) {
+   srand(time(NULL));
    struct my_msgbuf buf;
    int msqid;
    int len;
@@ -34,21 +35,23 @@ int main(void) {
    }
    printf("message queue: ready to send messages.\n");
    printf("Enter lines of text, ^D to quit:\n");
-   buf.mtype = 4; /* we don't really care in this case */
+   buf.mtype = 1; /* we don't really care in this case */
    for(;;){
       //fgets(buf.mtext, sizeof buf.mtext, stdin);
-      for(int i = 0; i < 2; ++i){
-         *buf.mtext += (int)rand() % 10;
+      for(int i = 0; i < 10; ++i){
+         buf.mtext[i] = (int)rand() % 10;
+         printf("newly randomiced number nr %d: %d\n", i, buf.mtext[i]);
       }
-      len = strlen(buf.mtext);
+      len = sizeof(buf.mtext)/sizeof(int);
       /* remove newline at end, if it exists */
       if (buf.mtext[len-1] == '\n') buf.mtext[len-1] = '\0'; //checks if users pressed enter
+      printf("pringting (trying) all in buf: %d\n", *buf.mtext);
       if (msgsnd(msqid, &buf, len+1, 0) == -1) /* +1 for '\0' */    //tries to send
          perror("msgsnd");
-      sleep(0.1);
+      sleep(1);
    } //captures the users input
    strcpy(buf.mtext, "end"); //writes 'end' at the end of the sending text to notify receiver
-   len = strlen(buf.mtext);
+   len = sizeof(buf.mtext)/sizeof(int);
    if (msgsnd(msqid, &buf, len+1, 0) == -1) /* +1 for '\0' */ //send final message
       perror("msgsnd");
 
