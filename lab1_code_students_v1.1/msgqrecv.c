@@ -9,7 +9,7 @@
 #define PERMS 0644
 struct my_msgbuf {
    long mtype;
-   int mtext[10];
+   int mtext;
 };
 
 int main(void) {
@@ -31,17 +31,17 @@ int main(void) {
 
    for(;;) { /* normally receiving never ends but just to make conclusion */
              /* this program ends with string of end */
-      if (msgrcv(msqid, &buf, 40, 0, 0) == -1) { //if error while recieving
+      if (msgrcv(msqid, &buf, sizeof(buf.mtext), 0, 0) == -1) { //if error while recieving
          perror("msgrcv");
          exit(1);
       }
       //sizeof(*buf.mtext)/sizeof(int)
-      for(int i = 0; i < 10; ++i){
-         printf("individual numer recieved nr %d: %d\n", i, buf.mtext[i]);
-      }
+      //for(int i = 0; i < 10; ++i){
+      printf("individual numer recieved: %d\n", buf.mtext);
+      //}
       fflush(stdout);
       printf("\n");
-      toend = strcmp(buf.mtext,"end");
+      toend = (buf.mtext != -1);
       if (toend == 0)
       break;
    }

@@ -7,11 +7,15 @@ pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 double bankAccountBalance = 0;
 
 void deposit(double amount) {
+    pthread_mutex_lock(&lock);
     bankAccountBalance += amount;
+    pthread_mutex_unlock(&lock);
 }
 
 void withdraw(double amount) {
+    pthread_mutex_lock(&lock);
     bankAccountBalance -= amount;
+    pthread_mutex_unlock(&lock);
 }
 
 // utility function to identify even-odd numbers
@@ -54,5 +58,5 @@ int main(int argc, char** argv) {
 }
 
 /*
-
+Since threads operate in a shared memoryspace, situations might occur where multiple threads reads the value of bankAccountBalance at the same time, and both does the same thing, i.e. race conditions.
 */

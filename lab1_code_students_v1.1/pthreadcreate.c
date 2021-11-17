@@ -17,3 +17,9 @@ int main(int argc, char** argv) {
 	pthread_join(thread, NULL); // wait for child to finish
 	return 0;
 }
+/*
+The program prints:
+	This is the parent (main) thread.
+	This is the child thread.
+then the parent waits for the child to return after the child() function is exectued before closing the main(), to make sure the child is finnished before exiting.
+*/
