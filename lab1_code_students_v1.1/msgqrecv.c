@@ -5,6 +5,7 @@
 #include <sys/types.h>
 #include <sys/ipc.h>
 #include <sys/msg.h>
+#include <unistd.h>
 
 #define PERMS 0644
 struct my_msgbuf {
@@ -28,8 +29,8 @@ int main(void) {
       exit(1);
    }
    printf("message queue: ready to receive messages.\n");
-
-   for(;;) { /* normally receiving never ends but just to make conclusion */
+   
+   for(int i = 0; i < 50; i++) { /* normally receiving never ends but just to make conclusion */
              /* this program ends with string of end */
       if (msgrcv(msqid, &buf, sizeof(buf.mtext), 0, 0) == -1) { //if error while recieving
          perror("msgrcv");
@@ -37,15 +38,12 @@ int main(void) {
       }
       //sizeof(*buf.mtext)/sizeof(int)
       //for(int i = 0; i < 10; ++i){
-      printf("individual numer recieved: %d\n", buf.mtext);
+      printf("individual numer recieved: %d %d\n", buf.mtext, i);
       //}
       fflush(stdout);
-      printf("\n");
-      toend = (buf.mtext != -1);
-      if (toend == 0)
-      break;
    }
    printf("message queue: done receiving messages.\n");
+   sleep(0.1);
    system("rm msgq.txt");
    return 0;
 }

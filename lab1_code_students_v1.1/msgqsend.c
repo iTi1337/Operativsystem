@@ -7,6 +7,7 @@
 #include <sys/msg.h>
 #include <time.h> // use time.h header file to use time  
 #include <unistd.h>
+#include <limits.h>
 
 time_t t1; // declare time variable 
 
@@ -43,7 +44,7 @@ int main(void) {
    while(strcmp(fgets(keykey, 5, stdin), "\n") == 1);
    for(int i = 0; i < 50; ++i){
       //fgets(buf.mtext, sizeof buf.mtext, stdin);
-      buf.mtext = (int)rand();
+      buf.mtext = (int)rand()%INT_MAX*2 - INT_MIN;
       printf("newly randomiced number nr %d: %d\n", i, buf.mtext);
       
       len = sizeof(buf.mtext);
@@ -53,13 +54,10 @@ int main(void) {
       if (msgsnd(msqid, &buf, len, 0) == -1) /* +1 for '\0' */    //tries to send
          perror("msgsnd");
       
-   } //captures the users input
+   } 
+   sleep(0.1);
+   //captures the users input
    //strcpy(buf.mtext, "end"); //writes 'end' at the end of the sending text to notify receiver
-   buf.mtext = -1;
-   len = sizeof(buf.mtext);
-   if (msgsnd(msqid, &buf, len, 0) == -1) /* +1 for '\0' */ //send final message
-      perror("msgsnd");
-
    if (msgctl(msqid, IPC_RMID, NULL) == -1) { //releases control of textfile
       perror("msgctl");
       exit(1);

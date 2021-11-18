@@ -42,8 +42,10 @@ init_matrix(void)
     */
     pthread_t *init_rows;
     init_rows = malloc(SIZE * sizeof(pthread_t));
+    int threadArgs[SIZE];
     for (int i = 0; i < SIZE; i++) {
-        pthread_create(&(init_rows[i]), NULL, init_row, (void*)i);
+        threadArgs[i] = i;
+        pthread_create(&(init_rows[i]), NULL, init_row, (void*)threadArgs[i]);
     }
     for (int id = 0; id < SIZE; id++)
         pthread_join(init_rows[id], NULL);
@@ -64,9 +66,10 @@ matmul_seq()
 {
     pthread_t *rows;
     rows = malloc(SIZE * sizeof(pthread_t));
-
+    int threadArgs[SIZE];
     for (int i = 0; i < SIZE; i++) {
-        pthread_create(&(rows[i]), NULL, matmul_row, (void*)i);
+        threadArgs[i] = i;
+        pthread_create(&(rows[i]), NULL, matmul_row, (void*)threadArgs[i]);
     }
     for (int id = 0; id < SIZE; id++)
         pthread_join(rows[id], NULL);
