@@ -75,7 +75,7 @@ main(int argc, char **argv)
 }
 
 /*
-The original program took 5.916 seconds to run in real time.
-With our changes, it took 1.753 seconds to run in real time
-Our speedup was 337%
+The original program took 2.296 seconds to run in real time.
+With our changes, it took 1.517 seconds to run in real time
+Our speedup was 51%
 */
