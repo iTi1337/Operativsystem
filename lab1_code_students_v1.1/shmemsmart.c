@@ -17,7 +17,7 @@ const char *semName2 = "my_sema2";
 
 int main(int argc, char **argv)
 {
-	sem_t *sem_id1 = sem_open(semName1, O_CREAT, O_RDWR, 1); //open, initial value 1
+	sem_t *sem_id1 = sem_open(semName1, O_CREAT, O_RDWR, 10); //open, initial value 1
 	sem_t *sem_id2 = sem_open(semName2, O_CREAT, O_RDWR, 0); //closed, initial value 2
 	int status;
 	struct shm_struct {
