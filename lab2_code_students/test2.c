@@ -26,6 +26,6 @@ int main(int argc, char **argv)
         fclose(f);
     }
 }
-// We found the process was suprisingly CPU bount too, with the cpu usage spiking to almost 100% usage during runtime, which should show that the program would have gone faster, if CPU capacity were bigger.
+// Our CPU usage was found to be 40% during runtime, hinting at the program being I/O bound
 // 5244348 blocks where written out during the processes runtime
 // memory usage was 852103168
