@@ -33,6 +33,7 @@ void insert_array(struct dynamic *d, int page){
 int future_check(struct dynamic *d, int start, int page, int page_size){
     for(int i = start + 1; i < d->used; i++){
         if(page == d->pages[i] / page_size){
+            //printf("%d\n", i-start);
             return (i-start);
         }
     }
@@ -85,17 +86,17 @@ int main(int argc, char *argv[]){
             }
         }
         if (foundit == 0){ //did not find it
+            num_pagefaults += 1;
             last->last_used = 0;
             int throwaway = 0;
             for(int j = 0; j < no_phys_pages; j++){ //gets physical
-                if(future_check(all_pages, i, pages[j].number) > last->last_used, page_size){ //calculates how long in the future it will be used
+                if(future_check(all_pages, i, pages[j].number, page_size) > last->last_used){ //calculates how long in the future it will be used
                     last->last_used = future_check(all_pages, i, pages[j].number, page_size); //the number of future moves it will be reused
                     last->number = pages[j].number;
                     throwaway = j;
                 }
             }
             pages[throwaway].number = page_number;
-            num_pagefaults += 1;
         }
         memory_read += 1;
     }
