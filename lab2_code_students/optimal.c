@@ -107,4 +107,5 @@ int main(int argc, char *argv[]){
     fclose(fptr);
     free(pages);
     free(last);
+    free(all_pages);
 }
