@@ -12,8 +12,8 @@ struct page{
 
 struct dynamic{
     int *pages;
-    size_t size;
-    size_t used;
+    int size;
+    int used;
 };
 
 void init_array(struct dynamic *d, int size){
@@ -51,16 +51,17 @@ int main(int argc, char *argv[]){
 
     int num_pagefaults = 0;
     int size = sizeof(struct page) * no_phys_pages;
-    
+
+    struct dynamic *all_pages;
+    all_pages = malloc(sizeof(struct dynamic));
+    init_array(all_pages, 8);
+
     struct page* pages = malloc(size);
     for(int j = 0; j < size/sizeof(struct page); j++){
         pages[j].number = -1;
     }
-    
-    struct dynamic *all_pages;
     struct page *furthest = malloc(sizeof(struct page));
 
-    init_array(all_pages, 16);
 
     printf("\n--------------------\n");
     printf("No physical pages = %d, page size = %d\n", no_phys_pages, page_size);
@@ -101,7 +102,7 @@ int main(int argc, char *argv[]){
             pages[throwaway].number = page_number;
         }
     }
-    
+
     printf("Read %d memory references => %d pagefaults\n", i, num_pagefaults);
     printf("--------------------\n");
 
