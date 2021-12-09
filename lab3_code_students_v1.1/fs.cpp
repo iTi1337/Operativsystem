@@ -1,5 +1,7 @@
 #include <iostream>
 #include "fs.h"
+#include <stdio.h>
+#include <string.h>
 
 FS::FS()
 {
@@ -15,10 +17,13 @@ FS::~FS()
 int
 FS::format()
 {
-    //Disk disk;
-    //skapa block
-    uint8_t *blk = (uint8_t*)malloc(BLOCK_SIZE);
+    uint8_t *blk = (uint8_t*)malloc(BLOCK_SIZE); //writes a whole empty block
     disk.write(0, blk); //time to write some cooode
+    //fat = (uint8_t*)malloc(BLOCK_SIZE); //writes a whole empty block (should mean the)
+    memset(fat, 0, sizeof(fat)/sizeof(int16_t));
+    fat[0] = disk.get_no_blocks();// 4096/2
+    fat[1] = 2041;
+    disk.write(1, (uint8_t*)fat); //time to write some cooode
     //how do i get a create disk function hmmm
     std::cout << "FS::format()\n";
     return 0;
@@ -27,8 +32,22 @@ FS::format()
 // create <filepath> creates a new file on the disk, the data content is
 // written on the following rows (ended with an empty row)
 int
-FS::create(std::string filepath)
-{
+FS::create(std::string filepath) // /name_of_file
+{   
+    //char input[10];
+    //std::cin >> input;
+    uint8_t *blk = (uint8_t*)malloc(BLOCK_SIZE); //writes a whole empty block
+    disk.read(1, blk);
+    blk = (uint8_t*)blk;
+    for (int i = 0; i < 10; i+=2){
+        std::cout << "Read value " << (uint16_t)(((blk[i] << 8) | blk[i+1] )<< 8) << "\n";
+    }
+    //struct dir_entry new_file;
+    //new_file.file_name = filepath;
+    //strcpy(new_file.file_name, filepath.c_str()); //yeah?
+    //blk = (uint8_t*)malloc(BLOCK_SIZE); //writes a whole empty block
+    //disk.write(3, blk);
+
     std::cout << "FS::create(" << filepath << ")\n";
     return 0;
 }
