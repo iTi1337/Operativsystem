@@ -15,6 +15,11 @@ FS::~FS()
 int
 FS::format()
 {
+    //Disk disk;
+    //skapa block
+    uint8_t *blk = (uint8_t*)malloc(BLOCK_SIZE);
+    disk.write(0, blk); //time to write some cooode
+    //how do i get a create disk function hmmm
     std::cout << "FS::format()\n";
     return 0;
 }
