@@ -40,7 +40,7 @@ FS::create(std::string filepath) // /name_of_file
     disk.read(1, blk);
     blk = (uint8_t*)blk;
     for (int i = 0; i < 10; i+=2){
-        std::cout << "Read value " << (uint16_t)(((blk[i] << 8) | blk[i+1] )<< 8) << "\n";
+        std::cout << "Read value " << (uint16_t)(((blk[i]) | blk[i+1] << 8)) << "\n";
     }
     //struct dir_entry new_file;
     //new_file.file_name = filepath;
