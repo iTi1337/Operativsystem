@@ -36,12 +36,15 @@ FS::create(std::string filepath) // /name_of_file
 {   
     //char input[10];
     //std::cin >> input;
-    uint8_t *blk = (uint8_t*)malloc(BLOCK_SIZE); //writes a whole empty block
-    disk.read(1, blk);
-    blk = (uint8_t*)blk;
-    for (int i = 0; i < 10; i+=2){
-        std::cout << "Read value " << (uint16_t)(((blk[i]) | blk[i+1] << 8)) << "\n";
+    uint16_t *blk = (uint16_t*)malloc(BLOCK_SIZE); //calloc writes closer to eachother
+    disk.read(1, (uint8_t*)blk);
+    //blk = (uint8_t*)blk;
+    for (int i = 0; i < 10; i++){
+        std::cout << "Read value " << blk[i] << "\n";
     }
+    //for (int i = 0; i < 10; i+=2){
+    //    std::cout << "Read value " << (uint16_t)(((blk[i]) | blk[i+1] << 8)) << "\n";
+    //}
     //struct dir_entry new_file;
     //new_file.file_name = filepath;
     //strcpy(new_file.file_name, filepath.c_str()); //yeah?
