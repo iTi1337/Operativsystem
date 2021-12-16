@@ -33,6 +33,10 @@ private:
 public:
     FS();
     ~FS();
+
+    int diskwrite(std::string blk);
+
+    char *diskread(int first_blk);
     // formats the disk, i.e., creates an empty file system
     int format();
     // create <filepath> creates a new file on the disk, the data content is
