@@ -1,6 +1,7 @@
 #include <iostream>
 #include <cstdint>
 #include "disk.h"
+#include <bits/stdc++.h>
 
 #ifndef __FS_H__
 #define __FS_H__
@@ -29,14 +30,15 @@ private:
     Disk disk;
     // size of a FAT entry is 2 bytes
     int16_t fat[BLOCK_SIZE/2];
+    int diskwrite(std::string blk, int start_blk);
+    std::string diskread(int first_blk);
+    std::vector<int> get_fats(int first_blk);
+
 
 public:
     FS();
     ~FS();
 
-    int diskwrite(std::string blk);
-
-    char *diskread(int first_blk);
     // formats the disk, i.e., creates an empty file system
     int format();
     // create <filepath> creates a new file on the disk, the data content is
