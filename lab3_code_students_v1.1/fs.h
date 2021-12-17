@@ -1,7 +1,7 @@
 #include <iostream>
 #include <cstdint>
 #include "disk.h"
-#include <bits/stdc++.h>
+#include <vector>
 
 #ifndef __FS_H__
 #define __FS_H__
@@ -33,6 +33,8 @@ private:
     int diskwrite(std::string blk, int start_blk);
     std::string diskread(int first_blk);
     std::vector<int> get_fats(int first_blk);
+    bool file_exists(std::string filename);
+    dir_entry cwd;
 
 
 public:

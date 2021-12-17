@@ -2,11 +2,13 @@
 #include "fs.h"
 #include <stdio.h>
 #include <string.h>
-#include <bits/stdc++.h>
+#include <vector>
 
 FS::FS()
 {
     std::cout << "FS::FS()... Creating file system\n";
+    cwd.first_blk = 0;
+    strcpy(cwd.file_name, "/");
     disk.read(1, (uint8_t*)fat);
 }
 
@@ -15,6 +17,18 @@ FS::~FS()
 
 }
 
+//Checks if a filename exists in the directory
+bool
+FS::file_exists(std::string filename){
+    dir_entry *blk = (dir_entry*)calloc(disk.get_no_blocks(), sizeof(dir_entry)); //Creates an empty block
+    disk.read(cwd.first_blk, (uint8_t*)blk); //Writes it to the root directory
+    for (int j = 0; j < 64; j++){
+        if (strcmp(blk[j].file_name, filename.c_str()) == 0){
+            return true;
+        }
+    }
+    return false;
+}
 //HELPER FUNCTIONS HELP ME FALL ASLEEP AT NIGHT
 //Takes in fat starting position and returns all fat indexes it finds untill it finds a -1 (EOF)
 std::vector<int>
@@ -28,6 +42,8 @@ FS::get_fats(int first_blk){
     return_values.push_back(pointer); //To include -1 in return values
     return return_values;
 }
+
+
 
 //LEET GAMER CODE
 //Takes in the first block of a file and returns the entire file, even if it's stored on multiple blocks
@@ -95,7 +111,7 @@ int
 FS::format()
 {
     uint8_t *blk = (uint8_t*)calloc(BLOCK_SIZE, sizeof(uint8_t*)); //Creates an empty block
-    disk.write(0, blk); //Writes it to the root directory
+    disk.write(cwd.first_blk, blk); //Writes it to the root directory
     memset(fat, 0, sizeof(fat)); //Resets the local fat variable
     fat[0] = -1; //Sets initial values
     fat[1] = -1;
@@ -108,7 +124,11 @@ FS::format()
 // written on the following rows (ended with an empty row)
 int
 FS::create(std::string filepath) // /name_of_file
-{   
+{
+    if(file_exists(filepath)){
+        std::cout << "Filename already exists. Use a different name and try again";
+        return -1;
+    }
     std::string input = ""; //Variable for the entire input
     int first = 1; //To check if it's the first line of input
     std::string line_input; //To read new lines
@@ -128,16 +148,16 @@ FS::create(std::string filepath) // /name_of_file
     new_file = (dir_entry*)calloc(1, sizeof(dir_entry));
     strcpy(new_file->file_name, filepath.c_str());
     new_file->size = input.length();
+    new_file->type = '0';
     new_file->first_blk = diskwrite(input); //Writes the input to the disk and store where it begins
-    
     dir_entry *blk = (dir_entry*)calloc(disk.get_no_blocks(), sizeof(dir_entry)); //Creates an empty block
-    disk.read(0, (uint8_t*)blk); //Reads in the root directory
+    disk.read(cwd.first_blk, (uint8_t*)blk); //Reads in the root directory
     //Finds a spot for the file in the directory
     // DOES NOT CHECK FOR DUPLICATES, SHOULD PROBABLY BE FIXED EVENTUALLY
     for (int j = 0; j < 64; j++){
         if (strcmp(blk[j].file_name, "") == 0){
             blk[j] = *new_file;
-            disk.write(0, (uint8_t*)blk);
+            disk.write(cwd.first_blk, (uint8_t*)blk);
             break;
         }
     }
@@ -150,7 +170,7 @@ int
 FS::cat(std::string filepath)
 {
     dir_entry *blk = (dir_entry*)calloc(disk.get_no_blocks(), sizeof(dir_entry)); //Creates an empty block
-    disk.read(0, (uint8_t*)blk); //Reads in the root directory
+    disk.read(cwd.first_blk, (uint8_t*)blk); //Reads in the root directory
     for (int i = 0; i < 64; i++){
         if (strcmp(blk[i].file_name, filepath.c_str()) == 0){ //Finds the file with the inputted filepath
             std::string content;
@@ -170,11 +190,12 @@ FS::ls()
 {
     std::cout << "FS::ls()\n";
     dir_entry *blk = (dir_entry*)calloc(disk.get_no_blocks(), sizeof(dir_entry)); //Creates an empty block
-    disk.read(0, (uint8_t*)blk); //Reads in the root directory
-    std::cout << "name" << "   " << "size" << "\n";
+    disk.read(cwd.first_blk, (uint8_t*)blk); //Reads in the root directory
+    std::cout << "name" << "   " << "size" << "  " << "type" << "\n";
     for (int i = 0; i < 64; i++){
+        //std::cout << blk[i].type << "\n";
         if (strcmp(blk[i].file_name, "") != 0){ //List every filename in directory which is not null
-            std::cout << blk[i].file_name << "   " << blk[i].size << "\n";
+            std::cout << blk[i].file_name << "   " << blk[i].size << " " << blk[i].type << "\n";
         }
     }
     return 0;
@@ -185,9 +206,13 @@ FS::ls()
 int
 FS::cp(std::string sourcepath, std::string destpath)
 {
+    if(file_exists(destpath)){
+        std::cout << "Filename already exists. Use a different name and try again";
+        return -1;
+    }
     std::cout << "FS::cp(" << sourcepath << "," << destpath << ")\n";
     dir_entry *blk = (dir_entry*)calloc(disk.get_no_blocks(), sizeof(dir_entry)); //Creates an empty block
-    disk.read(0, (uint8_t*)blk); //Reads in the root directory
+    disk.read(cwd.first_blk, (uint8_t*)blk); //Reads in the root directory
     for (int i = 0; i < 64; i++){
         if (strcmp(blk[i].file_name, sourcepath.c_str()) == 0){ //finds the file with the source name
             //Creates the new directory entry
@@ -195,13 +220,14 @@ FS::cp(std::string sourcepath, std::string destpath)
             new_file = (dir_entry*)malloc(sizeof(dir_entry));
             strcpy(new_file->file_name, destpath.c_str());
             new_file->size = blk[i].size;
+            new_file->type = blk[i].type;
             new_file->first_blk = diskwrite(diskread(blk[i].first_blk)); //Reads the data from the old file, writes the data from the new file and saves where it starts, how neat aint that (genuint stolt över detta)
             //Finds a spot for the file in the directory
             // DOES NOT CHECK FOR DUPLICATES, SHOULD PROBABLY BE FIXED EVENTUALLY
             for (int k = 0; k < 64; k++){
                 if (strcmp(blk[k].file_name, "") == 0){
                     blk[k] = *new_file;
-                    disk.write(0, (uint8_t*)blk);
+                    disk.write(cwd.first_blk, (uint8_t*)blk);
                     break;
                 }
             }
@@ -218,24 +244,42 @@ FS::mv(std::string sourcepath, std::string destpath)
 {
     std::cout << "FS::mv(" << sourcepath << "," << destpath << ")\n";
     dir_entry *blk = (dir_entry*)calloc(disk.get_no_blocks(), sizeof(dir_entry)); //Creates an empty block
-    disk.read(0, (uint8_t*)blk); //Reads in the root directory
+    disk.read(cwd.first_blk, (uint8_t*)blk); //Reads in the root directory
     for (int i = 0; i < 64; i++){
         if (strcmp(blk[i].file_name, sourcepath.c_str()) == 0){ //Finds the source file
-            strcpy(blk[i].file_name, destpath.c_str()); //Changes its name to specified name
-            disk.write(0, (uint8_t*)blk); //Writes the change to the disk
-            break;
+            if (strcmp((char*)blk[i].type, "1") == 0){
+                std::cout << "AM HERE\n";
+                int old_blk = cwd.first_blk;
+                cd(destpath);
+                dir_entry *new_blk = (dir_entry*)calloc(disk.get_no_blocks(), sizeof(dir_entry)); //Creates an empty block
+                disk.read(cwd.first_blk, (uint8_t*)new_blk); //Reads in the root directory
+                for (int k = 0; k < 64; k++){
+                    if (strcmp(new_blk[k].file_name, "") == 0){
+                        new_blk[k] = blk[i];
+                        disk.write(cwd.first_blk, (uint8_t*)new_blk);
+                        break;
+                    }
+                }
+                cd("..");
+                rm(blk[i].file_name);
+            }
+            else{
+                strcpy(blk[i].file_name, destpath.c_str()); //Changes its name to specified name
+                break;
+            }
         }
     }
+    disk.write(cwd.first_blk, (uint8_t*)blk); //Writes the change to the disk
     return 0;
 }
 
-// rm <filepath> removes / deletes the file <filepath> 
+// rm <filepath> removes / deletes the file <filepath>
 int
 FS::rm(std::string filepath)
 {
     std::cout << "FS::rm(" << filepath << ")\n";
     dir_entry *blk = (dir_entry*)calloc(disk.get_no_blocks(), sizeof(dir_entry)); //Creates an empty block
-    disk.read(0, (uint8_t*)blk); //Reads in the root directory
+    disk.read(cwd.first_blk, (uint8_t*)blk); //Reads in the root directory
     for (int i = 0; i < 64; i++){
         if (strcmp(blk[i].file_name, filepath.c_str()) == 0){
             std::vector<int> fat_indexes = get_fats(blk[i].first_blk); //Gets where all fats of the file are stored
@@ -243,7 +287,7 @@ FS::rm(std::string filepath)
                 fat[fat_indexes[j]] = 0; //Nulls those scrubs
             }
             blk[i] = {0};
-            disk.write(0, (uint8_t*)blk);
+            disk.write(cwd.first_blk, (uint8_t*)blk);
             disk.write(1, (uint8_t*)fat);
             break;
         }
@@ -258,7 +302,7 @@ FS::append(std::string filepath1, std::string filepath2)
 {
     std::cout << "FS::append(" << filepath1 << "," << filepath2 << ")\n";
     dir_entry *blk = (dir_entry*)calloc(disk.get_no_blocks(), sizeof(dir_entry)); //Creates an empty block
-    disk.read(0, (uint8_t*)blk); //Reads in the root directory
+    disk.read(cwd.first_blk, (uint8_t*)blk); //Reads in the root directory
     for (int i = 0; i < 64; i++){
         if (strcmp(blk[i].file_name, filepath1.c_str()) == 0){
             for (int j = 0; j < 64; j++){
@@ -267,7 +311,7 @@ FS::append(std::string filepath1, std::string filepath2)
                     std::string file2 = diskread(blk[j].first_blk); 
                     diskwrite(file2.append(file1).c_str(), blk[j].first_blk); //Creates an entirely new file with the content of both files and starts at the same spot as file 2, not the best but it works.
                     blk[j].size += blk[i].size; //Adds together their size
-                    disk.write(0, (uint8_t*)blk);
+                    disk.write(cwd.first_blk, (uint8_t*)blk);
                     break;
                 }
             }
@@ -283,6 +327,39 @@ int
 FS::mkdir(std::string dirpath)
 {
     std::cout << "FS::mkdir(" << dirpath << ")\n";
+    
+    if(file_exists(dirpath)){
+        std::cout << "Dirname already exists. Use a different name and try again";
+        return -1;
+    }
+    //Creates the new directory entry
+    dir_entry *new_file;
+    new_file = (dir_entry*)calloc(1, sizeof(dir_entry));
+    strcpy(new_file->file_name, dirpath.c_str());
+    new_file->size = 0;
+    new_file->type = '1';
+    new_file->first_blk = diskwrite(""); //Writes the input to the disk and store where it begins
+
+    dir_entry *old_dir;
+    old_dir = (dir_entry*)calloc(1, sizeof(dir_entry));
+    old_dir->type = '1';
+    strcpy(old_dir->file_name, "..");
+    old_dir->first_blk = cwd.first_blk;
+    disk.write(new_file->first_blk, (uint8_t*)old_dir);
+    //old_dir->old_dir = ;
+
+
+    dir_entry *blk = (dir_entry*)calloc(disk.get_no_blocks(), sizeof(dir_entry)); //Creates an empty block
+    disk.read(cwd.first_blk, (uint8_t*)blk); //Reads in the root directory
+    //Finds a spot for the file in the directory
+    // DOES NOT CHECK FOR DUPLICATES, SHOULD PROBABLY BE FIXED EVENTUALLY
+    for (int j = 0; j < 64; j++){
+        if (strcmp(blk[j].file_name, "") == 0){
+            blk[j] = *new_file;
+            disk.write(cwd.first_blk, (uint8_t*)blk);
+            break;
+        }
+    }
     return 0;
 }
 
@@ -291,6 +368,14 @@ int
 FS::cd(std::string dirpath)
 {
     std::cout << "FS::cd(" << dirpath << ")\n";
+    dir_entry *blk = (dir_entry*)calloc(disk.get_no_blocks(), sizeof(dir_entry)); //Creates an empty block
+    disk.read(cwd.first_blk, (uint8_t*)blk); //Reads in the root directory
+    for (int i = 0; i < 64; i++){
+        if (strcmp(blk[i].file_name, dirpath.c_str()) == 0){
+            cwd.first_blk = blk[i].first_blk;
+            strcpy(cwd.file_name, dirpath.c_str());
+        }
+    }
     return 0;
 }
 
@@ -300,6 +385,32 @@ int
 FS::pwd()
 {
     std::cout << "FS::pwd()\n";
+    std::string full_path;
+
+    int old_cwd = cwd.first_blk;
+    
+    while(file_exists((std::string)"..")){
+        int old_blk = cwd.first_blk;
+        cd((std::string)"..");
+        dir_entry *blk = (dir_entry*)calloc(disk.get_no_blocks(), sizeof(dir_entry)); //Creates an empty block
+        disk.read(cwd.first_blk, (uint8_t*)blk); //Reads in the directory
+        for(int i=0; i < 64; i++){
+            if (old_blk == blk[i].first_blk){
+                std::string new_path_name = blk[i].file_name; // a
+                new_path_name.append((std::string)"/"); // a/
+                new_path_name.append(full_path); // a/what_it_was_before
+                full_path = new_path_name;
+                break;
+            }
+        }
+    }
+    std::string new_path_name = ""; // a
+    new_path_name.append((std::string)"/"); // a/
+    new_path_name.append(full_path); // a/what_it_was_before
+    full_path = new_path_name;
+    std::cout << full_path << "\n";
+    cwd.first_blk = old_cwd;
+    
     return 0;
 }
 
