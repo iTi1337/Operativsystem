@@ -2,6 +2,7 @@
 #include <cstdint>
 #include "disk.h"
 #include <vector>
+#include <sstream>
 
 #ifndef __FS_H__
 #define __FS_H__
@@ -31,9 +32,14 @@ private:
     // size of a FAT entry is 2 bytes
     int16_t fat[BLOCK_SIZE/2];
     int diskwrite(std::string blk, int start_blk);
+    int traveller(std::string path);
     std::string diskread(int first_blk);
     std::vector<int> get_fats(int first_blk);
-    bool file_exists(std::string filename);
+    std::vector<std::string> separate_path(std::string filepath_string);
+    std::string absolute_path();
+    bool exists(std::string filename);
+    bool dir_exists(std::string dirname);
+    bool valid_name(std::string name);
     dir_entry cwd;
 
 
@@ -67,7 +73,7 @@ public:
     // in the current directory
     int mkdir(std::string dirpath);
     // cd <dirpath> changes the current (working) directory to the directory named <dirpath>
-    int cd(std::string dirpath);
+    int cd(std::string dirpath, bool first = true);
     // pwd prints the full path, i.e., from the root directory, to the current
     // directory, including the currect directory name
     int pwd();
