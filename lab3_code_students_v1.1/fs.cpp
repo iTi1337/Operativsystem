@@ -5,9 +5,7 @@
 #include <vector>
 #include <sstream> //new
 
-//TODO fix move if inputed a directory instead of filename
-//absolute paths for eeeverything
-//access rights
+//TODO fix move, does not delet last dir-enrty (visualy?) currently
 
 
 FS::FS(){
@@ -21,30 +19,67 @@ FS::~FS(){
 
 }
 
-int 
+//returns bool array of (execute, write, read)
+std::vector<bool>
+FS::chmod_translate(std::string file_name){
+    std::vector<bool> ex_wr_re = {false, false, false};
+    dir_entry *blk = (dir_entry*)calloc(disk.get_no_blocks(), sizeof(dir_entry)); //Creates an empty block
+    disk.read(cwd.first_blk, (uint8_t*)blk); //Reads in the directory
+    for (int i = 0; i < 64; i++){
+        if (strcmp(blk[i].file_name, file_name.c_str()) == 0){ //finds the file with the right name
+            int total_rights = blk[i].access_rights;
+
+            if(total_rights >= 4){
+                ex_wr_re[2] = true;
+                total_rights -= 4;
+            }
+
+            if(total_rights >= 2){
+                ex_wr_re[1] = true;
+                total_rights -= 2;
+            }
+            
+            if(total_rights >= 1){
+                ex_wr_re[0] = true;
+                total_rights -= 1;
+            }
+        }
+    }
+
+    return ex_wr_re;
+}
+
+std::vector<int> 
 FS::traveller(std::string path){ //big brain?
     std::vector<std::string> separate = separate_path(path);
     int pos = 0;
+    int old_cwd = cwd.first_blk;
+    int write_access = 1;
     for(std::string i : separate){
         pos += 1;
         if (i == ""){
             cwd.first_blk = 0;
         }
         else {
-            if (dir_exists(i)){
+            if (dir_exists(i) && chmod_translate(i)[2]){
+                if (!chmod_translate(i)[1]){
+                    write_access = 0;
+                }
                 cd(i, false); // false == no traveler extravaganza
             }
             else if(pos == separate.size()){
+                //std::cout << separate[pos - 1] << "\n";
                 //we're on the last one (checking if file exists latr)
-                return 1; //no wrong
+                return {1, write_access}; //no wrong
             }
             else{
-                std::cout << "AAAAAAH\n";
-                return -1;
+                std::cout << "Path not found!\n";
+                cwd.first_blk = old_cwd;
+                return {-1, write_access};
             }
         }
     }
-    return 0;
+    return {0, write_access};
 }
 
 std::vector<std::string>
@@ -73,6 +108,8 @@ FS::exists(std::string filename){
     return false;
 }
 
+const int DIRECTORY = 49;
+
 bool
 FS::dir_exists(std::string dirname){
     //std::vector<std::string> seperate = separate_path(dirname);
@@ -82,7 +119,7 @@ FS::dir_exists(std::string dirname){
     disk.read(cwd.first_blk, (uint8_t*)blk); //Writes it to the root directory
     for (int j = 0; j < 64; j++){
         if ((strcmp(blk[j].file_name, dirname.c_str()) == 0)){
-            if (blk[j].type){
+            if(blk[j].type == DIRECTORY){
                 return true;
             }
         }
@@ -208,8 +245,7 @@ FS::diskwrite(std::string input, int start_blk = 0){
 
 // formats the disk, i.e., creates an empty file system
 int 
-FS::format()
-{
+FS::format(){
     uint8_t *blk = (uint8_t*)calloc(BLOCK_SIZE, sizeof(uint8_t*)); //Creates an empty block
     disk.write(cwd.first_blk, blk); //Writes it to the root directory
     memset(fat, 0, sizeof(fat)); //Resets the local fat variable
@@ -223,10 +259,19 @@ FS::format()
 // create <filepath> creates a new file on the disk, the data content is
 // written on the following rows (ended with an empty row)
 int
-FS::create(std::string filepath) // /name_of_file
-{
-    if(exists(filepath) && valid_name(filepath)){
+FS::create(std::string filepath) {
+    int old_cwd = cwd.first_blk;
+    std::vector<int> valid_path = traveller(filepath); //-1 if not a real path, 0 if directory aka empty, 1 if file, 
+    if(valid_path[0] != 1 || valid_path[1] == 0){ //if wrong path, we break or if its a dir
+        std::cout << "Either the path couldn't be accessed or you don't have write access to the folder!\n";
+        cwd.first_blk = old_cwd;
+        return -1;
+    }
+    filepath = separate_path(filepath).back().c_str();
+
+    if(exists(filepath) || !valid_name(filepath)){
         std::cout << "Filename already exists. Use a different name and try again";
+        cwd.first_blk = old_cwd;
         return -1;
     }
     std::string input = ""; //Variable for the entire input
@@ -249,6 +294,7 @@ FS::create(std::string filepath) // /name_of_file
     strcpy(new_file->file_name, filepath.c_str());
     new_file->size = input.length();
     new_file->type = '0';
+    new_file->access_rights = 7;
     new_file->first_blk = diskwrite(input); //Writes the input to the disk and store where it begins
     dir_entry *blk = (dir_entry*)calloc(disk.get_no_blocks(), sizeof(dir_entry)); //Creates an empty block
     disk.read(cwd.first_blk, (uint8_t*)blk); //Reads in the root directory
@@ -262,12 +308,22 @@ FS::create(std::string filepath) // /name_of_file
         }
     }
     std::cout << "FS::create(" << filepath << ")\n";
+    cwd.first_blk = old_cwd;
     return 0;
 }
 
 // cat <filepath> reads the content of a file and prints it on the screen
 int
 FS::cat(std::string filepath){
+    int old_cwd = cwd.first_blk;
+    int valid_path = traveller(filepath)[0];
+    filepath = separate_path(filepath).back().c_str();
+    if(valid_path != 1 || !chmod_translate(filepath)[2]){ //if wrong path, we break or if its a dir
+        std::cout << "Either the file was not found or you don't have read access to it!\n";
+        cwd.first_blk = old_cwd;
+        return -1;
+    }
+    
     dir_entry *blk = (dir_entry*)calloc(disk.get_no_blocks(), sizeof(dir_entry)); //Creates an empty block
     disk.read(cwd.first_blk, (uint8_t*)blk); //Reads in the root directory
     for (int i = 0; i < 64; i++){
@@ -279,7 +335,7 @@ FS::cat(std::string filepath){
             break;
         }
     }
-
+    cwd.first_blk = old_cwd;
     return 0;
 }
 
@@ -289,11 +345,32 @@ FS::ls(){
     std::cout << "FS::ls()\n";
     dir_entry *blk = (dir_entry*)calloc(disk.get_no_blocks(), sizeof(dir_entry)); //Creates an empty block
     disk.read(cwd.first_blk, (uint8_t*)blk); //Reads in the root directory
-    std::cout << "name" << "   " << "size" << "  " << "type" << "\n";
+    std::cout << "name" << "   " << "size" << "  " << "type" << " " << "access" << "\n";
     for (int i = 0; i < 64; i++){
         //std::cout << blk[i].type << "\n";
         if (strcmp(blk[i].file_name, "") != 0){ //List every filename in directory which is not null
-            std::cout << blk[i].file_name << "   " << blk[i].size << " " << blk[i].type << "\n";
+            std::vector<bool> chmod_access = chmod_translate(blk[i].file_name);
+            std::string chmod_char = "";
+            if(chmod_access[2]){
+                chmod_char.append("r");
+            }
+            else{
+                chmod_char.append("-");
+            }
+            
+            if(chmod_access[1]){
+                chmod_char.append("w");
+            }
+            else{
+                chmod_char.append("-");
+            }
+            if(chmod_access[0]){
+                chmod_char.append("x");
+            }
+            else{
+                chmod_char.append("-");
+            }    
+            std::cout << blk[i].file_name << "   " << blk[i].size << " " << blk[i].type << " " << chmod_char << "\n";
         }
     }
     return 0;
@@ -304,31 +381,56 @@ FS::ls(){
 int
 FS::cp(std::string sourcepath, std::string destpath){
     int old_cwd = cwd.first_blk;
-    if(exists(destpath) && !dir_exists(destpath)){ //if is taken and is map, is ok
-        std::cout << "Filename already exists. Use a different name and try again";
+    int valid_path = traveller(sourcepath)[0];
+    sourcepath = separate_path(sourcepath).back().c_str();
+    
+    if (!(valid_path == 1 && exists(sourcepath)) || !chmod_translate(sourcepath)[2]){ //Travels to sourcepath
+        std::cout << "Sourcepath not found!\n";
+        cwd.first_blk == old_cwd;
+        return -1;
+    }
+
+    dir_entry *blk = (dir_entry*)calloc(disk.get_no_blocks(), sizeof(dir_entry)); //Creates an empty block
+    disk.read(cwd.first_blk, (uint8_t*)blk); //Reads
+
+    cwd.first_blk = old_cwd;
+    
+    std::vector<int> valid_path_2 = traveller(destpath);
+
+    if (valid_path_2[1] == 0 || valid_path_2[0] == -1){
+        std::cout << "Write access denied\n";
+        cwd.first_blk = old_cwd;
+        return -1;
+    }
+    destpath = separate_path(destpath).back().c_str();
+
+    if(exists(destpath)){ //if is taken and is map, is ok
+        std::cout << "Filename already exists. Use a different name and try again\n";
+        cwd.first_blk = old_cwd;
+        return -1;
+    }
+    else if(valid_path_2[0] == 0 && exists(sourcepath)){
+        std::cout << "Filename already exists. Use a different name and try again\n";
+        cwd.first_blk = old_cwd;
         return -1;
     }
     std::cout << "FS::cp(" << sourcepath << "," << destpath << ")\n";
-    dir_entry *blk = (dir_entry*)calloc(disk.get_no_blocks(), sizeof(dir_entry)); //Creates an empty block
-    disk.read(cwd.first_blk, (uint8_t*)blk); //Reads in the root directory
     for (int i = 0; i < 64; i++){
         if (strcmp(blk[i].file_name, sourcepath.c_str()) == 0){ //finds the file with the source name
+            if(valid_path_2[0] == -1){ //if wrong path, we break
+                break;
+            }
             //Creates the new directory entry
             dir_entry *new_file;
             new_file = (dir_entry*)malloc(sizeof(dir_entry));
-            std::cout << "before_name = " << blk[i].file_name << "\n";
             strcpy(new_file->file_name, blk[i].file_name);
             
             new_file->size = blk[i].size;
             new_file->type = blk[i].type;
+            new_file->access_rights = blk[i].access_rights;
             new_file->first_blk = diskwrite(diskread(blk[i].first_blk)); //Reads the data from the old file, writes the data from the new file and saves where it starts, how neat aint that (genuint stolt över detta)
             //Finds a spot for the file in the *current* directory
             // DOES NOT CHECK FOR DUPLICATES, SHOULD PROBABLY BE FIXED EVENTUALLY
-            ;
-            if (traveller(destpath)){
-                std::cout << "Got here this time \n";
-                strcpy(new_file->file_name, separate_path(destpath).back().c_str());
-            }
             disk.read(cwd.first_blk, (uint8_t*)blk);
             for (int k = 0; k < 64; k++){
                 if (strcmp(blk[k].file_name, "") == 0){
@@ -350,33 +452,72 @@ FS::cp(std::string sourcepath, std::string destpath){
 int
 FS::mv(std::string sourcepath, std::string destpath){
     std::cout << "FS::mv(" << sourcepath << "," << destpath << ")\n";
+
+    int old_cwd = cwd.first_blk;
+
+    std::vector<int> valid_path = traveller(destpath);
+
+    if (valid_path[1] == 0){
+        std::cout << "Write access denied\n";
+        cwd.first_blk = old_cwd;
+        return -1;
+    }
+    sourcepath = separate_path(sourcepath).back().c_str();
+
+    if (!(valid_path[0] == 1 && exists(sourcepath)) || !chmod_translate(sourcepath)[2]){
+        std::cout << "Either the source file does not exist found or you don't have write accesss to it!\n";
+        cwd.first_blk = old_cwd;
+        return -1;
+    }
+    int source_cwd = cwd.first_blk;
+
     dir_entry *blk = (dir_entry*)calloc(disk.get_no_blocks(), sizeof(dir_entry)); //Creates an empty block
-    disk.read(cwd.first_blk, (uint8_t*)blk); //Reads in the root directory
+    disk.read(cwd.first_blk, (uint8_t*)blk); //Reads
+
+    cwd.first_blk = old_cwd;
+    
+    valid_path = traveller(destpath);
+
+    if (valid_path[1] == 0){
+        std::cout << "Write access denied\n";
+        cwd.first_blk = old_cwd;
+        return -1;
+    }
+    destpath = separate_path(destpath).back().c_str();
+    
+    if (exists(destpath) || valid_path[0] != 1){ //Travels to destpath. if is file and doesn not exists (not) == om den inte ar tom
+        std::cout << "Cannot find destination\n";
+        cwd.first_blk = old_cwd;
+        return -1;
+    }
+
+    dir_entry *new_blk = (dir_entry*)calloc(disk.get_no_blocks(), sizeof(dir_entry)); //Creates an empty block
+    disk.read(cwd.first_blk, (uint8_t*)new_blk); //Reads in the new directory
+
     for (int i = 0; i < 64; i++){
         if (strcmp(blk[i].file_name, sourcepath.c_str()) == 0){ //Finds the source file
-            if (blk[i].type){
-                std::cout << "AM HERE\n";
-                int old_blk = cwd.first_blk;
-                cd(destpath);
-                dir_entry *new_blk = (dir_entry*)calloc(disk.get_no_blocks(), sizeof(dir_entry)); //Creates an empty block
-                disk.read(cwd.first_blk, (uint8_t*)new_blk); //Reads in the root directory
-                for (int k = 0; k < 64; k++){
-                    if (strcmp(new_blk[k].file_name, "") == 0){
-                        new_blk[k] = blk[i];
-                        disk.write(cwd.first_blk, (uint8_t*)new_blk);
-                        break;
+            for (int k = 0; k < 64; k++){
+                if (strcmp(new_blk[k].file_name, "") == 0){
+                    new_blk[k] = blk[i];
+                    strcpy(new_blk[k].file_name, destpath.c_str());
+
+                    if (source_cwd == cwd.first_blk){ //if we are copying localy
+                        new_blk[i] = {0};
+                        disk.write(cwd.first_blk, (uint8_t*)new_blk); //writes over the new one with a empty hole
                     }
+                    else{
+                        blk[i] = {0};
+                        disk.write(source_cwd, (uint8_t*)blk); //remove the previous dir_entry
+                        disk.write(cwd.first_blk, (uint8_t*)new_blk);
+                    }
+                    break;
                 }
-                cd("..");
-                rm(blk[i].file_name);
-            }
-            else{
-                strcpy(blk[i].file_name, destpath.c_str()); //Changes its name to specified name
-                break;
             }
         }
     }
-    disk.write(cwd.first_blk, (uint8_t*)blk); //Writes the change to the disk
+    //if source_cwd == cwd
+    //disk.write(source_cwd, (uint8_t*)blk); //remove the previous dir_entry
+    cwd.first_blk = old_cwd;
     return 0;
 }
 
@@ -384,6 +525,28 @@ FS::mv(std::string sourcepath, std::string destpath){
 int
 FS::rm(std::string filepath){
     std::cout << "FS::rm(" << filepath << ")\n";
+    
+    int old_cwd = cwd.first_blk;
+    std::vector<int> valid_path = traveller(filepath);
+
+    if (valid_path[1] == 0){
+        std::cout << "Write access denied\n";
+        cwd.first_blk = old_cwd;
+        return -1;
+    } //-1 if not a real path, 0 if directory aka empty, 1 if file, 
+    if(valid_path[0] != 1){ //if wrong path, we break or if its a dir
+        std::cout << "Specified path was not a file!\n";
+        cwd.first_blk = old_cwd;
+        return -1;
+    }
+    filepath = separate_path(filepath).back().c_str();
+
+    if(!(exists(filepath)) || !chmod_translate(filepath)[1]){
+        std::cout << "Either the specified file does not exists or you don't have write access to it.\n";
+        cwd.first_blk = old_cwd;
+        return -1;
+    }
+
     dir_entry *blk = (dir_entry*)calloc(disk.get_no_blocks(), sizeof(dir_entry)); //Creates an empty block
     disk.read(cwd.first_blk, (uint8_t*)blk); //Reads in the root directory
     for (int i = 0; i < 64; i++){
@@ -398,6 +561,7 @@ FS::rm(std::string filepath){
             break;
         }
     }
+    cwd.first_blk = old_cwd;
     return 0;
 }
 
@@ -405,24 +569,60 @@ FS::rm(std::string filepath){
 // the end of file <filepath2>. The file <filepath1> is unchanged.
 int
 FS::append(std::string filepath1, std::string filepath2){
+    
     std::cout << "FS::append(" << filepath1 << "," << filepath2 << ")\n";
+    int old_cwd = cwd.first_blk;
+
+    int valid_path = traveller(filepath1)[0];
+    filepath1 = separate_path(filepath1).back().c_str();
+
+    if (!(valid_path == 1 && exists(filepath1)) || !chmod_translate(filepath1)[2]){ //Travels to filepath1
+        std::cout << "Either the source file cannot be found or you don't have read access to it!\n";
+        cwd.first_blk = old_cwd;
+        return -1;
+    }
+    int source_cwd = cwd.first_blk;
+
     dir_entry *blk = (dir_entry*)calloc(disk.get_no_blocks(), sizeof(dir_entry)); //Creates an empty block
-    disk.read(cwd.first_blk, (uint8_t*)blk); //Reads in the root directory
+    disk.read(cwd.first_blk, (uint8_t*)blk); //Reads
+
+    cwd.first_blk = old_cwd;
+    
+    std::vector<int> valid_path_2 = traveller(filepath2);
+
+    if (valid_path_2[1] == 0){
+        std::cout << "Write access denied\n";
+        cwd.first_blk = old_cwd;
+        return -1;
+    } //-1 if not a real path, 0 if directory aka empty, 1 if file, 
+
+    filepath2 = separate_path(filepath2).back().c_str();
+
+    if (!(valid_path_2[0] == 1 && exists(filepath2)) || !chmod_translate(filepath2)[1]){ //Travels to destpath. if is file and doesn not exists (not) == om den inte ar tom
+        std::cout << "Either the destination file cannot be found or you don't have write access to it!\n";
+        cwd.first_blk = old_cwd;
+        return -1;
+    }
+
+    dir_entry *new_blk = (dir_entry*)calloc(disk.get_no_blocks(), sizeof(dir_entry)); //Creates an empty block
+    disk.read(cwd.first_blk, (uint8_t*)new_blk); //Reads in the new directory
+    filepath2 = separate_path(filepath2).back().c_str();
     for (int i = 0; i < 64; i++){
         if (strcmp(blk[i].file_name, filepath1.c_str()) == 0){
             for (int j = 0; j < 64; j++){
-                if (strcmp(blk[j].file_name, filepath2.c_str()) == 0){ //When it finds both files
+                if (strcmp(new_blk[j].file_name, filepath2.c_str()) == 0){ //When it finds both files
                     std::string file1 = diskread(blk[i].first_blk); //Saves the content of file 1 and file 2
-                    std::string file2 = diskread(blk[j].first_blk); 
-                    diskwrite(file2.append(file1).c_str(), blk[j].first_blk); //Creates an entirely new file with the content of both files and starts at the same spot as file 2, not the best but it works.
-                    blk[j].size += blk[i].size; //Adds together their size
-                    disk.write(cwd.first_blk, (uint8_t*)blk);
+                    std::string file2 = diskread(new_blk[j].first_blk); 
+                    diskwrite(file2.append(file1).c_str(), new_blk[j].first_blk); //Creates an entirely new file with the content of both files and starts at the same spot as file 2, not the best but it works.
+                    new_blk[j].size += blk[i].size; //Adds together their size
+                    disk.write(cwd.first_blk, (uint8_t*)new_blk);
                     break;
                 }
             }
             break;
         }
     }
+    cwd.first_blk = old_cwd;
     return 0;
 }
 
@@ -430,23 +630,36 @@ FS::append(std::string filepath1, std::string filepath2){
 // in the current directory
 int FS::mkdir(std::string dirpath){
     std::cout << "FS::mkdir(" << dirpath << ")\n";
-    
-    if(exists(dirpath)){
-        std::cout << "Dirname already exists. Use a different name and try again";
+    int old_cwd = cwd.first_blk;
+    std::vector<int> valid_path = traveller(dirpath);
+
+    if(valid_path[1] == 0){ //if wrong path, we break or if its a dir
+        std::cout << "Write access denied\n";
+        cwd.first_blk = old_cwd;
+        return -1;
+    } //-1 if not a real path, 0 if directory aka empty, 1 if file, 
+    dirpath = separate_path(dirpath).back().c_str();
+
+    if(valid_path[0] != 1 || exists(dirpath)){
+        std::cout << "Path to directory occupied by enemy forces, we suggest starting a war\n";
+        cwd.first_blk = old_cwd;
         return -1;
     }
+    
     //Creates the new directory entry
     dir_entry *new_file;
     new_file = (dir_entry*)calloc(1, sizeof(dir_entry));
     strcpy(new_file->file_name, dirpath.c_str());
     new_file->size = 0;
     new_file->type = '1';
+    new_file->access_rights = 7;
     new_file->first_blk = diskwrite(""); //Writes the input to the disk and store where it begins
 
     dir_entry *old_dir;
     old_dir = (dir_entry*)calloc(1, sizeof(dir_entry));
     old_dir->type = '1';
     strcpy(old_dir->file_name, "..");
+    old_dir->access_rights = 7;
     old_dir->first_blk = cwd.first_blk;
     disk.write(new_file->first_blk, (uint8_t*)old_dir);
     //old_dir->old_dir = ;
@@ -455,7 +668,6 @@ int FS::mkdir(std::string dirpath){
     dir_entry *blk = (dir_entry*)calloc(disk.get_no_blocks(), sizeof(dir_entry)); //Creates an empty block
     disk.read(cwd.first_blk, (uint8_t*)blk); //Reads in the root directory
     //Finds a spot for the file in the directory
-    // DOES NOT CHECK FOR DUPLICATES, SHOULD PROBABLY BE FIXED EVENTUALLY
     for (int j = 0; j < 64; j++){
         if (strcmp(blk[j].file_name, "") == 0){
             blk[j] = *new_file;
@@ -463,6 +675,7 @@ int FS::mkdir(std::string dirpath){
             break;
         }
     }
+    cwd.first_blk = old_cwd;
     return 0;
 }
 
@@ -473,6 +686,7 @@ int FS::cd(std::string dirpath, bool first){
         traveller(dirpath);
         return 0;
     }
+
     dir_entry *blk = (dir_entry*)calloc(disk.get_no_blocks(), sizeof(dir_entry)); //Creates an empty block
     disk.read(cwd.first_blk, (uint8_t*)blk); //Reads in the root directory
     for (int i = 0; i < 64; i++){
@@ -489,7 +703,6 @@ int FS::cd(std::string dirpath, bool first){
 int
 FS::pwd(){
     std::cout << absolute_path() << "\n";
-    
     return 0;
 }
 
@@ -498,5 +711,31 @@ FS::pwd(){
 int
 FS::chmod(std::string accessrights, std::string filepath){
     std::cout << "FS::chmod(" << accessrights << "," << filepath << ")\n";
+    int old_cwd = cwd.first_blk;
+    int valid_path = traveller(filepath)[0]; //-1 if not a real path, 0 if directory aka empty, 1 if file, 
+    filepath = separate_path(filepath).back().c_str();
+    std::cout << filepath << "   "   << valid_path << "\n";
+    if(valid_path == 0){
+        cd("..");
+    }
+    if(valid_path == -1 || !exists(filepath)){
+        std::cout << "File not found!\n";
+        cwd.first_blk = old_cwd;
+        return -1;
+    }
+
+    dir_entry *blk = (dir_entry*)calloc(disk.get_no_blocks(), sizeof(dir_entry)); //Creates an empty block
+    disk.read(cwd.first_blk, (uint8_t*)blk); //Reads in the root directory
+    
+    for (int i = 0; i < 64; i++){
+        if (strcmp(blk[i].file_name, filepath.c_str()) == 0){
+            blk[i].access_rights = atoi(accessrights.c_str());
+            disk.write(cwd.first_blk, (uint8_t*)blk);
+            break;
+        }
+    }
+
+
+    cwd.first_blk = old_cwd;
     return 0;
 }

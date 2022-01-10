@@ -32,10 +32,11 @@ private:
     // size of a FAT entry is 2 bytes
     int16_t fat[BLOCK_SIZE/2];
     int diskwrite(std::string blk, int start_blk);
-    int traveller(std::string path);
+    std::vector<int>  traveller(std::string path);
     std::string diskread(int first_blk);
     std::vector<int> get_fats(int first_blk);
     std::vector<std::string> separate_path(std::string filepath_string);
+    std::vector<bool> chmod_translate(std::string file_name);
     std::string absolute_path();
     bool exists(std::string filename);
     bool dir_exists(std::string dirname);
