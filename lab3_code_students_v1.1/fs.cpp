@@ -287,8 +287,10 @@ FS::create(std::string filepath) {
     int first = 1; //To check if it's the first line of input
     std::string line_input; //To read new lines
     while (getline(std::cin, line_input, '\n')){
-        if (line_input.empty())
+        if (line_input.empty()){
+            input.append("\n");
             break;
+        }
         else{
             if(first != 1){ //if it's ugly and it's working, is it stil- yes, yes it is.
                 input.append("\n");
@@ -377,7 +379,14 @@ FS::ls(){
             else{
                 chmod_char.append("-");
             }    
-            std::cout << blk[i].file_name << "   " << blk[i].size << "   " << blk[i].type << "   " << chmod_char << "\n";
+            std::string type_str;
+            if(blk[i].type == DIRECTORY){
+                type_str.assign("dir ");
+            }
+            else{
+                type_str.assign("file");
+            };
+            std::cout << blk[i].file_name << "   " << blk[i].size << "   " << type_str << "   " << chmod_char << "\n";
         }
     }
     return 0;
@@ -421,7 +430,7 @@ FS::cp(std::string sourcepath, std::string destpath){
     }
     destpath = separate_path(destpath).back().c_str();
     
-    if (exists(destpath) || valid_path[0] != 1){ //Travels to destpath. if is file and doesn not exists (not) == om den inte ar tom
+    if (exists(destpath) && strcmp(destpath.c_str(), "..") != 0  || valid_path[0] == -1){ //Travels to destpath. if is file and doesn not exists (not) == om den inte ar tom
         std::cout << "Cannot find destination\n";
         cwd.first_blk = old_cwd;
         return -1;
@@ -437,7 +446,17 @@ FS::cp(std::string sourcepath, std::string destpath){
             //Creates the new directory entry
             dir_entry *new_file;
             new_file = (dir_entry*)malloc(sizeof(dir_entry));
-            strcpy(new_file->file_name, destpath.c_str());
+            if(valid_path[0] == 0){
+                strcpy(new_file->file_name, blk[i].file_name);
+                if (exists(blk[i].file_name)){
+                    std::cout << "File already exists!\n";
+                    cwd.first_blk = old_cwd;
+                    return -1;
+                }
+            }
+            else{
+                strcpy(new_file->file_name, destpath.c_str());
+            }
             
             new_file->size = blk[i].size;
             new_file->type = blk[i].type;
@@ -498,7 +517,7 @@ FS::mv(std::string sourcepath, std::string destpath){
     }
     destpath = separate_path(destpath).back().c_str();
     
-    if (exists(destpath) || valid_path[0] != 1){ //Travels to destpath. if is file and doesn not exists (not) == om den inte ar tom
+    if (exists(destpath) && strcmp(destpath.c_str(), "..") != 0 || valid_path[0] == -1){ //Travels to destpath. if is file and doesn not exists (not) == om den inte ar tom
         std::cout << "Cannot find destination\n";
         cwd.first_blk = old_cwd;
         return -1;
@@ -512,7 +531,17 @@ FS::mv(std::string sourcepath, std::string destpath){
             for (int k = 0; k < 64; k++){
                 if (strcmp(new_blk[k].file_name, "") == 0){
                     new_blk[k] = blk[i];
-                    strcpy(new_blk[k].file_name, destpath.c_str());
+                    if(valid_path[0] == 0){
+                        strcpy(new_blk[k].file_name, blk[i].file_name);
+                        if (exists(blk[i].file_name)){
+                            std::cout << "File already exists!\n";
+                            cwd.first_blk = old_cwd;
+                            return -1;
+                        }
+                    }
+                    else{
+                        strcpy(new_blk[k].file_name, destpath.c_str());
+                    }
 
                     if (source_cwd == cwd.first_blk){ //if we are copying localy
                         new_blk[i] = {0};
@@ -652,7 +681,7 @@ int FS::mkdir(std::string dirpath){
     dirpath = separate_path(dirpath).back().c_str();
 
     if(valid_path[0] != 1 || exists(dirpath)){
-        std::cout << "Path to directory occupied by enemy forces, we suggest starting a war\n";
+        std::cout << "Path to directory already occupied\n";
         cwd.first_blk = old_cwd;
         return -1;
     }
